@@ -1,0 +1,96 @@
+diff -urN a/board/nedap9263/nandflash/nedap9263.h b/board/nedap9263/nandflash/nedap9263.h
+--- a/board/nedap9263/nandflash/nedap9263.h	2010-04-06 14:44:43.917419666 +0200
++++ b/board/nedap9263/nandflash/nedap9263.h	2010-04-06 14:48:02.153919349 +0200
+@@ -42,9 +42,9 @@
+ /* ******************************************************************* */
+ #define BOARD_MAINOSC		25000000
+ 
+-#define PCLK			200000000
++#define PCLK			240000000
+ #define DIVA			5
+-#define MULA			40		// (PCLK / (BOARD_MAINOSC / DIVA))
++#define MULA			48		// (PCLK / (BOARD_MAINOSC / DIVA))
+ #define OUTA			2		// ((PCLK > 195000000) * 2)
+ 
+ #define BOARD_PLLA		AT91C_CKGR_SRCA
+@@ -108,20 +108,20 @@
+ /* Please refer to SMC section in AT91SAM9x datasheet to learn how 	*/
+ /* to generate these values. 						*/
+ /* ******************************************************************** */
+-#define AT91C_SM_NWE_SETUP	(1 << 0)
+-#define AT91C_SM_NCS_WR_SETUP	(1 << 8)
+-#define AT91C_SM_NRD_SETUP	(1 << 16)
+-#define AT91C_SM_NCS_RD_SETUP	(1 << 24)
++#define AT91C_SM_NWE_SETUP	(2 << 0)
++#define AT91C_SM_NCS_WR_SETUP	(0 << 8)
++#define AT91C_SM_NRD_SETUP	(2 << 16)
++#define AT91C_SM_NCS_RD_SETUP	(0 << 24)
+   
+-#define AT91C_SM_NWE_PULSE 	(3 << 0)
+-#define AT91C_SM_NCS_WR_PULSE	(3 << 8)
+-#define AT91C_SM_NRD_PULSE	(3 << 16)
+-#define AT91C_SM_NCS_RD_PULSE	(3 << 24)
++#define AT91C_SM_NWE_PULSE 	(4 << 0)
++#define AT91C_SM_NCS_WR_PULSE	(4 << 8)
++#define AT91C_SM_NRD_PULSE	(4 << 16)
++#define AT91C_SM_NCS_RD_PULSE	(4 << 24)
+   
+-#define AT91C_SM_NWE_CYCLE 	(5 << 0)
+-#define AT91C_SM_NRD_CYCLE	(5 << 16)
++#define AT91C_SM_NWE_CYCLE 	(7 << 0)
++#define AT91C_SM_NRD_CYCLE	(7 << 16)
+ 
+-#define AT91C_SM_TDF	        (2 << 16)
++#define AT91C_SM_TDF	        (3 << 16)
+ 
+ /* ******************************************************************* */
+ /* BootStrap Settings                                                  */
+diff -urN a/board/nedap9263/nedap9263.c b/board/nedap9263/nedap9263.c
+--- a/board/nedap9263/nedap9263.c	2010-04-06 14:44:43.917419666 +0200
++++ b/board/nedap9263/nedap9263.c	2010-04-06 14:50:08.437419354 +0200
+@@ -114,15 +114,15 @@
+ 	/* Configure SDRAM Controller */
+ 	sdram_init(	AT91C_SDRAMC_NC_11 |
+ 				AT91C_SDRAMC_NR_13 |
+-				AT91C_SDRAMC_CAS_2 |
++				AT91C_SDRAMC_CAS_3 |
+ 				AT91C_SDRAMC_NB_4_BANKS |
+ 				AT91C_SDRAMC_DBW_32_BITS |
+-				AT91C_SDRAMC_TWR_2 |
+-				AT91C_SDRAMC_TRC_7 |
+-				AT91C_SDRAMC_TRP_2 |
+-				AT91C_SDRAMC_TRCD_2 |
+-				AT91C_SDRAMC_TRAS_5 |
+-				AT91C_SDRAMC_TXSR_8,		/* Control Register       */
++				AT91C_SDRAMC_TWR_2 |
++				AT91C_SDRAMC_TRC_9 |
++				AT91C_SDRAMC_TRP_3 |
++				AT91C_SDRAMC_TRCD_3 |
++				AT91C_SDRAMC_TRAS_6 |
++				AT91C_SDRAMC_TXSR_10,		/* Control Register       */
+ 				(MASTER_CLOCK * 7)/1000000,	/* Refresh Timer Register */
+ 				AT91C_SDRAMC_MD_SDRAM);		/* SDRAM (no low power)   */ 
+ 
+@@ -144,15 +144,15 @@
+ 	if (readl(AT91C_EBI0_SDRAM + 0x00000000) < AT91C_SDRAMC_NC_11) {
+ 		sdram_init(	readl(AT91C_EBI0_SDRAM + 0x00000000) |
+ 					AT91C_SDRAMC_NR_13 |
+-					AT91C_SDRAMC_CAS_2 |
++					AT91C_SDRAMC_CAS_3 |
+ 					AT91C_SDRAMC_NB_4_BANKS |
+ 					AT91C_SDRAMC_DBW_32_BITS |
+-					AT91C_SDRAMC_TWR_2 |
+-					AT91C_SDRAMC_TRC_7 |
+-					AT91C_SDRAMC_TRP_2 |
+-					AT91C_SDRAMC_TRCD_2 |
+-					AT91C_SDRAMC_TRAS_5 |
+-					AT91C_SDRAMC_TXSR_8,		/* Control Register       */
++					AT91C_SDRAMC_TWR_2 |
++					AT91C_SDRAMC_TRC_9 |
++					AT91C_SDRAMC_TRP_3 |
++					AT91C_SDRAMC_TRCD_3 |
++					AT91C_SDRAMC_TRAS_6 |
++					AT91C_SDRAMC_TXSR_10,		/* Control Register       */
+ 					(MASTER_CLOCK * 7)/1000000,	/* Refresh Timer Register */
+ 					AT91C_SDRAMC_MD_SDRAM);		/* SDRAM (no low power)   */ 
+ 	}

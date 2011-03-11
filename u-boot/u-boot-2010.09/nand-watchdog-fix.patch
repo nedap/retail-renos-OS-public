@@ -1,0 +1,37 @@
+diff -urN a/drivers/mtd/nand/nand_base.c b/drivers/mtd/nand/nand_base.c
+--- a/drivers/mtd/nand/nand_base.c	2010-09-28 23:20:55.000000000 +0200
++++ b/drivers/mtd/nand/nand_base.c	2011-02-03 10:50:24.715538657 +0100
+@@ -1302,6 +1302,8 @@
+ 	oob = ops->oobbuf;
+ 
+ 	while(1) {
++		WATCHDOG_RESET();
++
+ 		bytes = min(mtd->writesize - col, readlen);
+ 		aligned = (bytes == mtd->writesize);
+ 
+@@ -1631,6 +1633,7 @@
+ 	page = realpage & chip->pagemask;
+ 
+ 	while(1) {
++		WATCHDOG_RESET();
+ 		sndcmd = chip->ecc.read_oob(mtd, chip, page, sndcmd);
+ 
+ 		len = min(len, readlen);
+@@ -2037,6 +2040,8 @@
+ 		memset(chip->oob_poi, 0xff, mtd->oobsize);
+ 
+ 	while(1) {
++		WATCHDOG_RESET();
++
+ 		int bytes = mtd->writesize;
+ 		int cached = writelen > bytes && page != blockmask;
+ 		uint8_t *wbuf = buf;
+@@ -2368,6 +2373,7 @@
+ 	instr->state = MTD_ERASING;
+ 
+ 	while (len) {
++		WATCHDOG_RESET();
+ 		/*
+ 		 * heck if we have a bad block, we do not erase bad blocks !
+ 		 */

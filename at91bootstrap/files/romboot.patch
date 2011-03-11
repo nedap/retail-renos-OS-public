@@ -1,0 +1,12 @@
+diff -urN a/elf32-littlearm.lds b/elf32-littlearm.lds
+--- a/elf32-littlearm.lds	2010-05-04 08:24:52.260964372 +0200
++++ b/elf32-littlearm.lds	2010-05-04 08:21:43.309464466 +0200
+@@ -18,7 +18,7 @@
+ 		_sdata = .;
+ 		*(.vectors)
+ 		*(.data)
+-		_edata = .;
++		_edata = (. - ADDR (.text));
+ 	}
+ 
+ 	/* collect all uninitialized .bss sections */

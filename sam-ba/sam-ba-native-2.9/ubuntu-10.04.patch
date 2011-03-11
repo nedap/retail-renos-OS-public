@@ -1,0 +1,33 @@
+diff -urN a/applets/isp-project/tcl_lib/common/generic.tcl b/applets/isp-project/tcl_lib/common/generic.tcl
+--- a/applets/isp-project/tcl_lib/common/generic.tcl	2009-06-22 15:25:50.000000000 +0200
++++ b/applets/isp-project/tcl_lib/common/generic.tcl	2010-05-12 08:02:50.525125954 +0200
+@@ -118,11 +118,15 @@
+     
+ #    puts "-I- Running applet command $cmd at address [format "0x%X" $appletAddr]"
+ 
++    for {set x 0} {$x < 200000} {incr x} {}
++
+     # Launch the applet Jumping to the appletAddr
+     if {[catch {TCL_Go $target(handle) $appletAddr} dummy_err] } {
+         error "Error Running the applet"
+     }
+     
++    for {set x 0} {$x < 200000} {incr x} {}
++    
+     # Wait for the end of execution
+     # TO DO: Handle timeout error
+     set result $cmd
+@@ -186,9 +190,13 @@
+     
+         puts "-I- \tWriting: [format "0x%X" $bufferSize] bytes at [format "0x%X" $offset] (buffer addr : [format "0x%X" $bufferAddress])"
+     
++	for {set x 0} {$x < 200000} {incr x} {}    
++
+         # Copy in RAM the content of the page to be written
+         TCL_Write_Data $target(handle) $bufferAddress rawData $bufferSize dummy_err
+         
++	for {set x 0} {$x < 200000} {incr x} {}    
++
+         # If this is a boot file modify 6th vector with file size
+         if {[expr ($isBootFile == 1) && ($offset == 0)]} {
+             TCL_Write_Int $target(handle) $sizeToWrite [expr $bufferAddress + (5 * 4)] dummy_err

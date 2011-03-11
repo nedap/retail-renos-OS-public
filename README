@@ -1,0 +1,20 @@
+RhEAS 
+
+	This repository contains all files to get the RhEAS board running.
+	To fulfill license requirements these files have to be public.
+
+	Based on OpenEmbedded: 
+		
+		http://www.openembedded.org/index.php/Release-2010.12
+		
+	Any inquiries/comments can be send to
+	
+		Nedap Retail Support
+		attn: Jaap de Jong
+		P.O. Box 102
+		NL-7141 AC Groenlo
+		Netherlands
+		
+		jaap.dejong@nedap.com
+		
+		

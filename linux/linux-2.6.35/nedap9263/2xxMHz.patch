@@ -1,0 +1,33 @@
+diff -urN a/arch/arm/mach-at91/board-nedap9263.c b/arch/arm/mach-at91/board-nedap9263.c
+--- a/arch/arm/mach-at91/board-nedap9263.c	2010-10-27 10:54:48.556238199 +0200
++++ b/arch/arm/mach-at91/board-nedap9263.c	2010-10-27 16:22:23.239587141 +0200
+@@ -216,20 +216,20 @@
+ 
+ static struct sam9_smc_config __initdata nedap9263_nand_smc_config = {
+ 	.ncs_read_setup		= 0,
+-	.nrd_setup		= 1,
++	.nrd_setup		= 2,
+ 	.ncs_write_setup	= 0,
+-	.nwe_setup		= 1,
++	.nwe_setup		= 2,
+ 
+-	.ncs_read_pulse		= 3,
+-	.nrd_pulse		= 3,
+-	.ncs_write_pulse	= 3,
+-	.nwe_pulse		= 3,
++	.ncs_read_pulse		= 4,
++	.nrd_pulse		= 4,
++	.ncs_write_pulse	= 4,
++	.nwe_pulse		= 4,
+ 
+-	.read_cycle		= 5,
+-	.write_cycle		= 5,
++	.read_cycle		= 7,
++	.write_cycle		= 7,
+ 
+ 	.mode			= AT91_SMC_READMODE | AT91_SMC_WRITEMODE | AT91_SMC_EXNWMODE_DISABLE,
+-	.tdf_cycles		= 2,
++	.tdf_cycles		= 3,
+ };
+ 
+ static void __init nedap9263_add_device_nand(void)

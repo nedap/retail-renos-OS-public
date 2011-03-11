@@ -1,0 +1,854 @@
+diff -urN a/arch/arm/mach-at91/board-nedap9263.c b/arch/arm/mach-at91/board-nedap9263.c
+--- a/arch/arm/mach-at91/board-nedap9263.c	1970-01-01 01:00:00.000000000 +0100
++++ b/arch/arm/mach-at91/board-nedap9263.c	2010-12-20 13:29:12.853688452 +0100
+@@ -0,0 +1,738 @@
++/*
++ * linux/arch/arm/mach-at91/board-nedap9263.c
++ *
++ *  Copyright (C) 2005 SAN People
++ *  Copyright (C) 2007 Atmel Corporation.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ */
++
++#include <linux/types.h>
++#include <linux/init.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/spi/spi.h>
++#include <linux/spi/ads7846.h>
++#include <linux/i2c/at24.h>
++#include <linux/fb.h>
++#include <linux/gpio_keys.h>
++#include <linux/input.h>
++#include <linux/leds.h>
++
++#include <video/atmel_lcdc.h>
++
++#include <asm/setup.h>
++#include <asm/mach-types.h>
++#include <asm/irq.h>
++
++#include <asm/mach/arch.h>
++#include <asm/mach/map.h>
++#include <asm/mach/irq.h>
++
++#include <mach/hardware.h>
++#include <mach/board.h>
++#include <mach/gpio.h>
++#include <mach/at91sam9_smc.h>
++#include <mach/at91_shdwc.h>
++#include <mach/at91_pmc.h>
++#include <mach/at91sam9263_matrix.h>
++
++#include "sam9_smc.h"
++#include "generic.h"
++
++
++/* --------------------------------------------------------------------
++ *  map_io
++ * -------------------------------------------------------------------- */
++
++static void __init nedap9263_map_io(void)
++{
++	/* Initialize processor: 25 MHz oscillator */
++	at91sam9263_initialize(25000000);
++
++#if defined(CONFIG_SERIAL_ATMEL) || defined(CONFIG_SERIAL_ATMEL_MODULE)
++	/* DBGU on ttyS0. (Rx & Tx only) */
++	at91_register_uart(0, 0, 0);
++
++	/* USART0 on ttyS1. (Rx, Tx, RTS - RS485 interface) */
++	at91_register_uart(AT91SAM9263_ID_US0, 1, ATMEL_UART_RTS);
++
++	/* USART1 on ttyS2. (Rx, Tx, RTS - RS485 interface) */
++	at91_register_uart(AT91SAM9263_ID_US1, 2, ATMEL_UART_RTS);
++
++	/* set serial console to ttyS0 (ie, DBGU) */
++	at91_set_serial_console(0);
++#endif
++}
++
++
++/* --------------------------------------------------------------------
++ *  init_irq
++ * -------------------------------------------------------------------- */
++
++static void __init nedap9263_init_irq(void)
++{
++	at91sam9263_init_interrupts(NULL);
++}
++
++
++/* --------------------------------------------------------------------
++ *  USB Host
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
++static struct at91_usbh_data __initdata nedap9263_usbh_data = {
++	.ports		= 2,
++	.vbus_pin	= { AT91_PIN_PA24, AT91_PIN_PA21 },
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  USB Device (Gadget)
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_USB_GADGET_AT91) || defined(CONFIG_USB_GADGET_AT91_MODULE)
++static struct at91_udc_data __initdata nedap9263_udc_data = {
++	.vbus_pin	= AT91_PIN_PA25,
++	.pullup_pin	= 0,		/* pull-up driven by UDC */
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  ADS7846 Touchscreen
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_TOUCHSCREEN_ADS7846) || defined(CONFIG_TOUCHSCREEN_ADS7846_MODULE)
++static int ads7843_pendown_state(void)
++{
++	return !at91_get_gpio_value(AT91_PIN_PA15);	/* Touchscreen PENIRQ */
++}
++
++static struct ads7846_platform_data ads_info = {
++	.model			= 7843,
++	.x_min			= 150,
++	.x_max			= 3830,
++	.y_min			= 190,
++	.y_max			= 3830,
++	.vref_delay_usecs	= 100,
++	.x_plate_ohms		= 450,
++	.y_plate_ohms		= 250,
++	.pressure_max		= 15000,
++	.debounce_max		= 1,
++	.debounce_rep		= 0,
++	.debounce_tol		= (~0),
++	.get_pendown_state	= ads7843_pendown_state,
++};
++
++static void __init nedap9263_add_device_ts(void)
++{
++	at91_set_B_periph(AT91_PIN_PA15, 1);	/* External IRQ1, with pullup */
++	at91_set_gpio_input(AT91_PIN_PA31, 1);	/* Touchscreen BUSY signal */
++}
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  SPI
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_SPI) || defined(CONFIG_SPI_MODULE)
++static struct spi_board_info nedap9263_spi_devices[] = {
++#if defined(CONFIG_MTD_AT91_DATAFLASH_CARD)
++	{	/* DataFlash card */
++		.modalias	= "mtd_dataflash",
++		.chip_select	= 0,
++		.max_speed_hz	= 15 * 1000 * 1000,
++		.bus_num	= 0,
++	},
++#endif
++#if defined(CONFIG_SPI_SPIDEV)
++	{	/* Micrel switch */
++		.modalias	= "spidev",
++		.chip_select	= 2,
++		.bus_num	= 0,
++	},
++	{	/* Power Over Ethernet controller */
++		.modalias	= "spidev",
++		.chip_select	= 3,
++		.bus_num	= 0,
++	},
++#endif
++#if defined(CONFIG_TOUCHSCREEN_ADS7846) || defined(CONFIG_TOUCHSCREEN_ADS7846_MODULE)
++	{
++		.modalias	= "ads7846",
++		.chip_select	= 3,
++		.max_speed_hz	= 125000 * 16,	/* max sample rate * clocks per sample */
++		.bus_num	= 0,
++		.platform_data	= &ads_info,
++		.irq		= AT91SAM9263_ID_IRQ1,
++	},
++#endif
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  MMC / SD
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_MMC) || defined(CONFIG_MMC_MODULE)
++static struct at91_mmc_data __initdata nedap9263_mmc_data = {
++	.wire4		= 1,
++	.det_pin	= AT91_PIN_PE18,
++	.wp_pin		= AT91_PIN_PE19,
++//	.vcc_pin	= ... not connected
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  Ethernet
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_MACB) || defined(CONFIG_MACB_MODULE)
++static struct at91_eth_data __initdata nedap9263_macb_data = {
++	.is_rmii	= 1,
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  NAND / SmartMedia
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_MTD_NAND) || defined(CONFIG_MTD_NAND_MODULE)
++//static struct mtd_partition __initdata nedap9263_nand_partition[] = {
++//	{
++//		.name	= "bootstrap",
++//		.offset	= 0,
++//		.size	= SZ_128K,
++//	},
++//	{
++//		.name	= "u-boot-env",
++//		.offset	= MTDPART_OFS_NXTBLK,
++//		.size	= SZ_256K,
++//	},
++//	{
++//		.name	= "u-boot",
++//		.offset	= MTDPART_OFS_NXTBLK,
++//		.size	= SZ_640K,
++//	},
++//	{
++//		.name	= "rootfs",
++//		.offset	= MTDPART_OFS_NXTBLK,
++//		.size	= MTDPART_SIZ_FULL,
++//	},
++//};
++//
++//static struct mtd_partition * __init nand_partitions(int size, int *num_partitions)
++//{
++//	*num_partitions = ARRAY_SIZE(nedap9263_nand_partition);
++//	return nedap9263_nand_partition;
++//}
++
++static struct atmel_nand_data __initdata nedap9263_nand_data = {
++	.ale		= 21,
++	.cle		= 22,
++//	.det_pin	= ... not connected
++	.rdy_pin	= AT91_PIN_PA22,
++	.enable_pin	= AT91_PIN_PD15,
++//	.partition_info	= nand_partitions,
++#if defined(CONFIG_MTD_NAND_ATMEL_BUSWIDTH_16)
++	.bus_width_16	= 1,
++#else
++	.bus_width_16	= 0,
++#endif
++};
++
++static struct sam9_smc_config __initdata nedap9263_nand_smc_config = {
++	.ncs_read_setup		= 0,
++	.nrd_setup		= 1,
++	.ncs_write_setup	= 0,
++	.nwe_setup		= 1,
++
++	.ncs_read_pulse		= 3,
++	.nrd_pulse		= 3,
++	.ncs_write_pulse	= 3,
++	.nwe_pulse		= 3,
++
++	.read_cycle		= 5,
++	.write_cycle		= 5,
++
++	.mode			= AT91_SMC_READMODE | AT91_SMC_WRITEMODE | AT91_SMC_EXNWMODE_DISABLE,
++	.tdf_cycles		= 2,
++};
++
++static void __init nedap9263_add_device_nand(void)
++{
++	/* setup bus-width (8 or 16) */
++	if (nedap9263_nand_data.bus_width_16)
++		nedap9263_nand_smc_config.mode |= AT91_SMC_DBW_16;
++	else
++		nedap9263_nand_smc_config.mode |= AT91_SMC_DBW_8;
++
++	/* configure chip-select 3 (NAND) */
++	sam9_smc_configure(3, &nedap9263_nand_smc_config);
++
++	at91_add_device_nand(&nedap9263_nand_data);
++}
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  I2C
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
++static struct at24_platform_data at24c512 = {
++	.byte_len	= SZ_512K / 8,
++	.page_size	= 128,
++	.flags		= AT24_FLAG_ADDR16,
++};
++
++
++static struct i2c_board_info __initdata nedap9263_i2c_devices[] = {
++	{
++		I2C_BOARD_INFO("24c512", 0x50),
++		.platform_data = &at24c512,
++	},
++	/* more devices can be added using expansion connectors */
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  LCD Controller
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_FB_ATMEL) || defined(CONFIG_FB_ATMEL_MODULE)
++static u64 lcdc_dmamask = DMA_BIT_MASK(32);
++static struct atmel_lcdfb_info lcdc_data;
++
++static struct resource lcdc_resources[] = {
++	[0] = {
++		.start	= AT91SAM9263_LCDC_BASE,
++		.end	= AT91SAM9263_LCDC_BASE + SZ_4K - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.start	= AT91_CHIPSELECT_6,
++		.end	= AT91_CHIPSELECT_6 + SZ_4M - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[2] = {
++		.start	= AT91SAM9263_ID_LCDC,
++		.end	= AT91SAM9263_ID_LCDC,
++		.flags	= IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device at91_lcdc_device = {
++	.name		= "atmel_lcdfb",
++	.id		= 0,
++	.dev		= {
++				.dma_mask		= &lcdc_dmamask,
++				.coherent_dma_mask	= DMA_BIT_MASK(32),
++				.platform_data		= &lcdc_data,
++	},
++	.resource	= lcdc_resources,
++	.num_resources	= ARRAY_SIZE(lcdc_resources),
++};
++
++static struct sam9_smc_config __initdata nedap9263_psram_smc_config = {
++	.ncs_read_setup		= 0,
++	.nrd_setup		= 0,
++	.ncs_write_setup	= 0,
++	.nwe_setup		= 0,
++
++	.ncs_read_pulse		= 6,
++	.nrd_pulse		= 3,
++	.ncs_write_pulse	= 6,
++	.nwe_pulse		= 5,
++
++	.read_cycle		= 6,
++	.write_cycle		= 6,
++
++	.mode			= AT91_SMC_DBW_16 | AT91_SMC_PMEN | AT91_SMC_PS_32,
++	.tdf_cycles		= 0,
++};
++
++void __init sam9_smc1_configure(int cs, struct sam9_smc_config* config)
++{
++	/* Setup register */
++	at91_sys_write(AT91_SMC1_SETUP(cs),
++		  AT91_SMC_NWESETUP_(config->nwe_setup)
++		| AT91_SMC_NCS_WRSETUP_(config->ncs_write_setup)
++		| AT91_SMC_NRDSETUP_(config->nrd_setup)
++		| AT91_SMC_NCS_RDSETUP_(config->ncs_read_setup)
++	);
++
++	/* Pulse register */
++	at91_sys_write(AT91_SMC1_PULSE(cs),
++		  AT91_SMC_NWEPULSE_(config->nwe_pulse)
++		| AT91_SMC_NCS_WRPULSE_(config->ncs_write_pulse)
++		| AT91_SMC_NRDPULSE_(config->nrd_pulse)
++		| AT91_SMC_NCS_RDPULSE_(config->ncs_read_pulse)
++	);
++
++	/* Cycle register */
++	at91_sys_write(AT91_SMC1_CYCLE(cs),
++		  AT91_SMC_NWECYCLE_(config->write_cycle)
++		| AT91_SMC_NRDCYCLE_(config->read_cycle)
++	);
++
++	/* Mode register */
++	at91_sys_write(AT91_SMC1_MODE(cs),
++		  config->mode
++		| AT91_SMC_TDF_(config->tdf_cycles)
++	);
++}
++
++void __init nedap9263_add_device_lcdc(struct atmel_lcdfb_info *data)
++{
++	unsigned long csa;
++
++	void __iomem *fb;
++	unsigned int psram = 0;
++
++	if (!data)
++		return;
++
++	at91_set_A_periph(AT91_PIN_PC0, 0);	/* LCDVSYNC */
++	at91_set_A_periph(AT91_PIN_PC1, 0);	/* LCDHSYNC */
++	at91_set_A_periph(AT91_PIN_PC2, 0);	/* LCDDOTCK */
++	at91_set_A_periph(AT91_PIN_PC3, 0);	/* LCDDEN */
++	at91_set_B_periph(AT91_PIN_PB9, 0);	/* LCDCC */
++	at91_set_A_periph(AT91_PIN_PC6, 0);	/* LCDD2 */
++	at91_set_A_periph(AT91_PIN_PC7, 0);	/* LCDD3 */
++	at91_set_A_periph(AT91_PIN_PC8, 0);	/* LCDD4 */
++	at91_set_A_periph(AT91_PIN_PC9, 0);	/* LCDD5 */
++	at91_set_A_periph(AT91_PIN_PC10, 0);	/* LCDD6 */
++	at91_set_A_periph(AT91_PIN_PC11, 0);	/* LCDD7 */
++	at91_set_A_periph(AT91_PIN_PC14, 0);	/* LCDD10 */
++	at91_set_A_periph(AT91_PIN_PC15, 0);	/* LCDD11 */
++	at91_set_A_periph(AT91_PIN_PC16, 0);	/* LCDD12 */
++	at91_set_B_periph(AT91_PIN_PC12, 0);	/* LCDD13 */
++	at91_set_A_periph(AT91_PIN_PC18, 0);	/* LCDD14 */
++	at91_set_A_periph(AT91_PIN_PC19, 0);	/* LCDD15 */
++	at91_set_A_periph(AT91_PIN_PC22, 0);	/* LCDD18 */
++	at91_set_A_periph(AT91_PIN_PC23, 0);	/* LCDD19 */
++	at91_set_A_periph(AT91_PIN_PC24, 0);	/* LCDD20 */
++	at91_set_B_periph(AT91_PIN_PC17, 0);	/* LCDD21 */
++	at91_set_A_periph(AT91_PIN_PC26, 0);	/* LCDD22 */
++	at91_set_A_periph(AT91_PIN_PC27, 0);	/* LCDD23 */
++
++	at91_sys_write(AT91_PMC_PCER, 1 << AT91SAM9263_ID_LCDC);
++	
++	/* configure chip-select 0, SMC1 (PSRAM) */
++	csa = at91_sys_read(AT91_MATRIX_EBI1CSA);
++	at91_sys_write(AT91_MATRIX_EBI1CSA,
++		       csa | AT91_MATRIX_EBI1_DBPUC |
++		       AT91_MATRIX_EBI1_VDDIOMSEL_3_3V);
++
++	sam9_smc1_configure(0, &nedap9263_psram_smc_config);
++
++	/* test PSRAM */
++	fb = ioremap(AT91_CHIPSELECT_6, SZ_4M);
++	if (fb) {
++		outw(0x1234, (int) fb+0);
++		outw(0x5678, (int) fb+2);
++		if (inw((int) fb+0) == 0x1234 && inw((int) fb+2) == 0x5678) 
++			++psram;
++
++		iounmap(fb);
++	} 
++
++	/* switch to PSRAM if found */
++	if (psram) {
++		/* setup bus matrix */
++		at91_sys_write( AT91_MATRIX_PRAS5, AT91_MATRIX_M5PR );
++		at91_sys_write( AT91_MATRIX_SCFG5, AT91_MATRIX_ARBT_FIXED_PRIORITY |
++					(AT91_MATRIX_FIXED_DEFMSTR & (5 << 18)) |
++					AT91_MATRIX_DEFMSTR_TYPE_FIXED |
++					(AT91_MATRIX_SLOT_CYCLE & (0xFF << 0)));
++	} else {
++		/* remove resource */ 
++		memcpy(&lcdc_resources[1], &lcdc_resources[2], sizeof(struct resource));
++		--at91_lcdc_device.num_resources;
++	}
++
++	lcdc_data = *data;
++	platform_device_register(&at91_lcdc_device);
++}
++
++static struct fb_videomode at91_tft_vga_modes[] = {
++	{
++		.name		= "TX09D50VM1CCA @ 60",
++		.refresh	= 60,
++		.xres		= 240,		.yres		= 320,
++		.pixclock	= KHZ2PICOS(4965),
++
++		.left_margin	= 1,		.right_margin	= 33,
++		.upper_margin	= 1,		.lower_margin	= 0,
++		.hsync_len	= 5,		.vsync_len	= 1,
++
++		.sync		= FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
++		.vmode		= FB_VMODE_NONINTERLACED,
++	},
++};
++
++static struct fb_monspecs at91fb_default_monspecs = {
++	.manufacturer	= "HIT",
++	.monitor	= "TX09D70VM1CCA",
++
++	.modedb		= at91_tft_vga_modes,
++	.modedb_len	= ARRAY_SIZE(at91_tft_vga_modes),
++	.hfmin		= 15000,
++	.hfmax		= 64000,
++	.vfmin		= 50,
++	.vfmax		= 150,
++};
++
++#define AT91SAM9263_DEFAULT_LCDCON2 	(ATMEL_LCDC_MEMOR_LITTLE \
++					| ATMEL_LCDC_DISTYPE_TFT \
++					| ATMEL_LCDC_CLKMOD_ALWAYSACTIVE)
++
++static void at91_lcdc_power_control(int on)
++{
++	at91_set_gpio_value(AT91_PIN_PA30, on);
++}
++
++/* Driver datas */
++static struct atmel_lcdfb_info __initdata nedap9263_lcdc_data = {
++	.lcdcon_is_backlight		= true,
++	.default_bpp			= 16,
++	.default_dmacon			= ATMEL_LCDC_DMAEN,
++	.default_lcdcon2		= AT91SAM9263_DEFAULT_LCDCON2,
++	.default_monspecs		= &at91fb_default_monspecs,
++	.atmel_lcdfb_power_control	= at91_lcdc_power_control,
++	.guard_time			= 1,
++};
++
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  GPIO
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
++static struct gpio_keys_button nedap9263_buttons[] = {
++	{	/* BP1, "leftclic" */
++		.code		= BTN_LEFT,
++		.gpio		= AT91_PIN_PC5,
++		.active_low	= 1,
++		.desc		= "left_click",
++		.wakeup		= 1,
++	},
++	{	/* BP2, "rightclic" */
++		.code		= BTN_RIGHT,
++		.gpio		= AT91_PIN_PC4,
++		.active_low	= 1,
++		.desc		= "right_click",
++		.wakeup		= 1,
++	}
++};
++
++static struct gpio_keys_platform_data nedap9263_button_data = {
++	.buttons	= nedap9263_buttons,
++	.nbuttons	= ARRAY_SIZE(nedap9263_buttons),
++};
++
++static struct platform_device nedap9263_button_device = {
++	.name		= "gpio-keys",
++	.id		= -1,
++	.num_resources	= 0,
++	.dev		= {
++		.platform_data	= &nedap9263_button_data,
++	}
++};
++
++static void __init nedap9263_add_device_buttons(void)
++{
++	at91_set_GPIO_periph(AT91_PIN_PC5, 1);	/* left button */
++	at91_set_deglitch(AT91_PIN_PC5, 1);
++	at91_set_GPIO_periph(AT91_PIN_PC4, 1);	/* right button */
++	at91_set_deglitch(AT91_PIN_PC4, 1);
++
++	platform_device_register(&nedap9263_button_device);
++}
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  AC97
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_SOUND) || defined(CONFIG_SOUND_MODULE)
++static struct ac97c_platform_data nedap9263_ac97_data = {
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  LEDS
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_LEDS) || defined(CONFIG_LEDS_MODULE)
++static struct gpio_led nedap9263_leds[] = {
++#if !(defined(CONFIG_LEDS_ATMEL_PWM) || defined(CONFIG_LEDS_ATMEL_PWM_MODULE))
++	{
++		.name			= "led0yellow",
++		.gpio			= AT91_PIN_PB7,
++		.active_low		= 1,
++		.default_trigger	= "heartbeat",
++	},
++	{
++		.name			= "led1green",
++		.gpio			= AT91_PIN_PB8,
++		.active_low		= 1,
++		.default_trigger	= "nand-disk",
++	},
++	{
++		.name			= "led2green",
++		.gpio			= AT91_PIN_PC29,
++		.active_low		= 1,
++		.default_trigger	= "none",
++	},
++#endif
++};
++
++static struct gpio_led nedap9263_pwm_leds[] = {
++#if defined(CONFIG_LEDS_ATMEL_PWM) || defined(CONFIG_LEDS_ATMEL_PWM_MODULE)
++	{
++		.name			= "led0yellow",
++		.gpio			= 0,	/* is PWM channel number */
++		.active_low		= 1,
++		.default_trigger	= "heartbeat",
++	},
++	{
++		.name			= "led1green",
++		.gpio			= 1,
++		.active_low		= 1,
++		.default_trigger	= "nand-disk",
++	},
++	{
++		.name			= "led2green",
++		.gpio			= 2,
++		.active_low		= 1,
++		.default_trigger	= "none",
++	},
++#endif
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  CAN Controller
++ * -------------------------------------------------------------------- */
++
++#if defined(CONFIG_CAN) || defined(CONFIG_CAN_MODULE)
++static void nedap9263_transceiver_switch(int on)
++{
++	if (on) {
++		at91_set_gpio_output(AT91_PIN_PA18, 1); /* CANRXEN */
++		at91_set_gpio_output(AT91_PIN_PA19, 0); /* CANRS */
++	} else {
++		at91_set_gpio_output(AT91_PIN_PA18, 0); /* CANRXEN */
++		at91_set_gpio_output(AT91_PIN_PA19, 1); /* CANRS */
++	}
++}
++
++static struct at91_can_data nedap9263_can_data = {
++	.transceiver_switch = nedap9263_transceiver_switch,
++};
++#endif
++
++
++/* --------------------------------------------------------------------
++ *  board_init
++ * -------------------------------------------------------------------- */
++
++static void __init nedap9263_board_init(void)
++{
++	/* Serial */
++#if defined(CONFIG_SERIAL_ATMEL) || defined(CONFIG_SERIAL_ATMEL_MODULE)
++	at91_add_device_serial();
++#endif
++	/* USB Host */
++#if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
++	at91_add_device_usbh(&nedap9263_usbh_data);
++#endif
++	/* USB Device */
++#if defined(CONFIG_USB_GADGET_AT91) || defined(CONFIG_USB_GADGET_AT91_MODULE)
++	at91_add_device_udc(&nedap9263_udc_data);
++#endif
++	/* SPI */
++#if defined(CONFIG_SPI) || defined(CONFIG_SPI_MODULE)
++	at91_set_gpio_output(AT91_PIN_PE20, 1);		/* select spi0 clock */
++	at91_add_device_spi(nedap9263_spi_devices, ARRAY_SIZE(nedap9263_spi_devices));
++#endif
++	/* Touchscreen */
++#if defined(CONFIG_TOUCHSCREEN_ADS7846) || defined(CONFIG_TOUCHSCREEN_ADS7846_MODULE)
++	nedap9263_add_device_ts();
++#endif
++	/* MMC */
++#if defined(CONFIG_MMC) || defined(CONFIG_MMC_MODULE)
++	at91_add_device_mmc(1, &nedap9263_mmc_data);
++#endif
++	/* Ethernet */
++#if defined(CONFIG_MACB) || defined(CONFIG_MACB_MODULE)
++	at91_add_device_eth(&nedap9263_macb_data);
++#endif
++	/* NAND */
++#if defined(CONFIG_MTD_NAND) || defined(CONFIG_MTD_NAND_MODULE)
++	nedap9263_add_device_nand();
++#endif
++	/* I2C */
++#if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
++	at91_add_device_i2c(nedap9263_i2c_devices, ARRAY_SIZE(nedap9263_i2c_devices));
++#endif
++	/* LCD Controller */
++#if defined(CONFIG_FB_ATMEL) || defined(CONFIG_FB_ATMEL_MODULE)
++	nedap9263_add_device_lcdc(&nedap9263_lcdc_data);
++#endif
++	/* Push Buttons */
++#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
++	nedap9263_add_device_buttons();
++#endif
++	/* AC97 */
++#if defined(CONFIG_SOUND) || defined(CONFIG_SOUND_MODULE)
++	at91_add_device_ac97(&nedap9263_ac97_data);
++#endif
++	/* LEDs */
++#if defined(CONFIG_LEDS) || defined(CONFIG_LEDS_MODULE)
++	at91_gpio_leds(nedap9263_leds, ARRAY_SIZE(nedap9263_leds));
++	at91_pwm_leds(nedap9263_pwm_leds, ARRAY_SIZE(nedap9263_pwm_leds));
++#endif
++	/* CAN */
++#if defined(CONFIG_CAN) || defined(CONFIG_CAN_MODULE)
++	at91_add_device_can(&nedap9263_can_data);
++#endif
++}
++
++MACHINE_START(NEDAP9263, "Nedap at91sam9263 board")
++	/* Maintainer: Atmel */
++	.phys_io	= AT91_BASE_SYS,
++	.io_pg_offst	= (AT91_VA_BASE_SYS >> 18) & 0xfffc,
++	.boot_params	= AT91_SDRAM_BASE + 0x100,
++	.timer		= &at91sam926x_timer,
++	.map_io		= nedap9263_map_io,
++	.init_irq	= nedap9263_init_irq,
++	.init_machine	= nedap9263_board_init,
++MACHINE_END
+diff -urN a/arch/arm/mach-at91/Kconfig b/arch/arm/mach-at91/Kconfig
+--- a/arch/arm/mach-at91/Kconfig	2010-12-14 23:40:18.000000000 +0100
++++ b/arch/arm/mach-at91/Kconfig	2010-12-20 13:29:12.885689396 +0100
+@@ -308,6 +308,12 @@
+ 	help
+ 	  Select this if you are using the Adeneo Neocore 926 board.
+ 
++config MACH_NEDAP9263
++	bool "Nedap at91sam9263 Board"
++	depends on ARCH_AT91SAM9263
++	help
++	  Select this if you are using Nedap's at91sam9263 board.
++
+ endif
+ 
+ # ----------------------------------------------------------
+diff -urN a/arch/arm/mach-at91/Makefile b/arch/arm/mach-at91/Makefile
+--- a/arch/arm/mach-at91/Makefile	2010-12-14 23:40:18.000000000 +0100
++++ b/arch/arm/mach-at91/Makefile	2010-12-20 13:29:12.885689396 +0100
+@@ -55,6 +55,7 @@
+ obj-$(CONFIG_MACH_AT91SAM9263EK) += board-sam9263ek.o
+ obj-$(CONFIG_MACH_USB_A9263)	+= board-usb-a9263.o
+ obj-$(CONFIG_MACH_NEOCORE926)	+= board-neocore926.o
++obj-$(CONFIG_MACH_NEDAP9263)	+= board-nedap9263.o
+ 
+ # AT91SAM9RL board-specific support
+ obj-$(CONFIG_MACH_AT91SAM9RLEK)	+= board-sam9rlek.o
+diff -urN a/drivers/net/macb.c b/drivers/net/macb.c
+--- a/drivers/net/macb.c	2010-12-14 23:40:18.000000000 +0100
++++ b/drivers/net/macb.c	2010-12-20 13:29:12.981692226 +0100
+@@ -90,40 +90,54 @@
+ 
+ static int macb_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+ {
+-	struct macb *bp = bus->priv;
+-	int value;
++	static u16 phy_regs[] = {
++		BMCR_FULLDPLX			/* 00 Basic mode control register */
++			| BMCR_SPEED100,
++		BMSR_ANEGCAPABLE		/* 01 Basic mode status register  */
++			| BMSR_100FULL
++			| BMSR_LSTATUS
++			| BMSR_ANEGCOMPLETE,	
++		0,				/* 02 PHYS ID 1                   */
++		0,				/* 03 PHYS ID 2                   */
++		0xFFFF,				/* 04 Advertisement control reg   */
++		LPA_100FULL,			/* 05 Link partner ability reg    */
++		0xFFFF,				/* 06 Expansion register          */
++		0xFFFF,				/* 07 */
++		0xFFFF,				/* 08 */
++		0xFFFF,				/* 09 1000BASE-T control          */
++		0,				/* 0a 1000BASE-T status           */
++		0xFFFF,				/* 0b */
++		0xFFFF,				/* 0c */
++		0xFFFF,				/* 0d */
++		0xFFFF,				/* 0e */
++		0xFFFF,				/* 0f Extended Status             */
++		0xFFFF,				/* 10 */
++		0xFFFF,				/* 11 */
++		0xFFFF,				/* 12 Disconnect counter          */
++		0xFFFF,				/* 13 False carrier counter       */
++		0xFFFF,				/* 14 N-way auto-neg test reg     */
++		0xFFFF,				/* 15 Receive error counter       */
++		0xFFFF,				/* 16 Silicon revision            */
++		0xFFFF,				/* 17 Reserved...                 */
++		0xFFFF,				/* 18 Lpback, rx, bypass error    */
++		0xFFFF,				/* 19 PHY address                 */
++		0xFFFF,				/* 1a Reserved...                 */
++		0xFFFF,				/* 1b TPI status for 10mbps       */
++		0xFFFF,				/* 1c Network interface config    */
++		0xFFFF,				/* 1d */
++		0xFFFF,				/* 1e */
++		0xFFFF,				/* 1f */
++	} ;
+ 
+-	macb_writel(bp, MAN, (MACB_BF(SOF, MACB_MAN_SOF)
+-			      | MACB_BF(RW, MACB_MAN_READ)
+-			      | MACB_BF(PHYA, mii_id)
+-			      | MACB_BF(REGA, regnum)
+-			      | MACB_BF(CODE, MACB_MAN_CODE)));
++	if (regnum >= sizeof(phy_regs) || regnum < 0)
++		return -1;
+ 
+-	/* wait for end of transfer */
+-	while (!MACB_BFEXT(IDLE, macb_readl(bp, NSR)))
+-		cpu_relax();
+-
+-	value = MACB_BFEXT(DATA, macb_readl(bp, MAN));
+-
+-	return value;
++	return phy_regs[regnum];
+ }
+ 
+ static int macb_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
+ 			   u16 value)
+ {
+-	struct macb *bp = bus->priv;
+-
+-	macb_writel(bp, MAN, (MACB_BF(SOF, MACB_MAN_SOF)
+-			      | MACB_BF(RW, MACB_MAN_WRITE)
+-			      | MACB_BF(PHYA, mii_id)
+-			      | MACB_BF(REGA, regnum)
+-			      | MACB_BF(CODE, MACB_MAN_CODE)
+-			      | MACB_BF(DATA, value)));
+-
+-	/* wait for end of transfer */
+-	while (!MACB_BFEXT(IDLE, macb_readl(bp, NSR)))
+-		cpu_relax();
+-
+ 	return 0;
+ }
+ 

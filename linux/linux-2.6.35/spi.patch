@@ -1,0 +1,49 @@
+diff -urN a/drivers/spi/atmel_spi.c b/drivers/spi/atmel_spi.c
+--- a/drivers/spi/atmel_spi.c	2010-10-29 06:47:22.000000000 +0200
++++ b/drivers/spi/atmel_spi.c	2010-12-01 13:40:04.680160796 +0100
+@@ -534,7 +534,7 @@
+ {
+ 	struct atmel_spi	*as;
+ 	struct atmel_spi_device	*asd;
+-	u32			scbr, csr;
++	u32			scbr, csr, dlybct = 0;
+ 	unsigned int		bits = spi->bits_per_word;
+ 	unsigned long		bus_hz;
+ 	unsigned int		npcs_pin;
+@@ -581,13 +581,22 @@
+ 
+ 		/*
+ 		 * If the resulting divider doesn't fit into the
+-		 * register bitfield, we can't satisfy the constraint.
++		 * register bitfield, we try to change the delay between the words.
+ 		 */
+ 		if (scbr >= (1 << SPI_SCBR_SIZE)) {
+-			dev_dbg(&spi->dev,
+-				"setup: %d Hz too slow, scbr %u; min %ld Hz\n",
+-				spi->max_speed_hz, scbr, bus_hz/255);
+-			return -EINVAL;
++			dlybct = scbr >> 5;
++			scbr = 0xff;
++
++			/*
++			 * If the resulting divider doesn't fit into the
++			 * register bitfield, we can't satisfy the constraint.
++			 */
++			if (dlybct >= (1 << SPI_DLYBCT_SIZE)) {
++				dev_dbg(&spi->dev,
++					"setup: %d Hz too slow, scbr %u, dlybct %u; min %ld Hz\n",
++					spi->max_speed_hz, scbr, dlybct, bus_hz/255);
++				return -EINVAL;
++			}
+ 		}
+ 	} else
+ 		/* speed zero means "as slow as possible" */
+@@ -606,7 +615,7 @@
+ 	 * in those cases it's probably best to just use a lower bitrate.
+ 	 */
+ 	csr |= SPI_BF(DLYBS, 0);
+-	csr |= SPI_BF(DLYBCT, 0);
++	csr |= SPI_BF(DLYBCT, dlybct);
+ 
+ 	/* chipselect must have been muxed as GPIO (e.g. in board setup) */
+ 	npcs_pin = (unsigned int)spi->controller_data;

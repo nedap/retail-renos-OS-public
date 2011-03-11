@@ -1,0 +1,19 @@
+diff -urN a/drivers/serial/atmel_serial.c b/drivers/serial/atmel_serial.c
+--- a/drivers/serial/atmel_serial.c	2010-12-17 08:30:34.430108429 +0100
++++ b/drivers/serial/atmel_serial.c	2010-12-17 08:32:23.309431673 +0100
+@@ -1402,6 +1402,15 @@
+ 	atmel_port->use_dma_rx = data->use_dma_rx;
+ 	atmel_port->use_dma_tx = data->use_dma_tx;
+ 	atmel_port->rs485	= data->rs485;
++
++	/* the most ugly way to enable rs485 on ports 1 and 2... */
++	if (port->line == 1 || port->line == 2) {
++		printk(KERN_INFO "atmel_usart.%d mode = rs485\n", port->line);
++		atmel_port->rs485.flags |= SER_RS485_ENABLED;
++	} else {
++		printk(KERN_INFO "atmel_usart.%d mode = rs232\n", port->line);
++	}
++	
+ 	/* Use TXEMPTY for interrupt when rs485 else TXRDY or ENDTX|TXBUFE */
+ 	if (atmel_port->rs485.flags & SER_RS485_ENABLED)
+ 		atmel_port->tx_done_mask = ATMEL_US_TXEMPTY;

@@ -1,0 +1,563 @@
+diff -urN a/board/nedap9263/nandflash/Makefile b/board/nedap9263/nandflash/Makefile
+--- a/board/nedap9263/nandflash/Makefile	1970-01-01 01:00:00.000000000 +0100
++++ b/board/nedap9263/nandflash/Makefile	2010-04-06 14:44:04.869420401 +0200
+@@ -0,0 +1,117 @@
++# TODO: set this appropriately for your local toolchain
++#SHELL=C:\CYGWIN_REP\dwn_071004\bin\BASH.exe
++CROSS_COMPILE=arm-elf-
++
++TOOLCHAIN=gcc
++
++BOOTSTRAP_PATH=../../..
++
++# NandFlashBoot Configuration for NEDAP9263
++
++# Target name (case sensitive!!!)
++TARGET=NEDAP9263
++# Board name (case sensitive!!!)
++BOARD=nedap9263
++# Link Address and Top_of_Memory
++LINK_ADDR=0x300000
++TOP_OF_MEMORY=0x314000
++# Name of current directory
++PROJECT=nandflash
++
++ifndef BOOT_NAME
++BOOT_NAME=$(PROJECT)_$(BOARD)
++endif
++
++INCL=./$(BOOTSTRAP_PATH)/board/$(BOARD)/$(PROJECT)
++
++ifeq ($(TOOLCHAIN), gcc)
++
++AS=$(CROSS_COMPILE)gcc
++CC=$(CROSS_COMPILE)gcc
++LD=$(CROSS_COMPILE)gcc
++NM= $(CROSS_COMPILE)nm
++SIZE=$(CROSS_COMPILE)size
++OBJCOPY=$(CROSS_COMPILE)objcopy
++OBJDUMP=$(CROSS_COMPILE)objdump
++CCFLAGS=-g -mcpu=arm9 -O0 -Wall -D$(TARGET) -I$(INCL)
++ASFLAGS=-g -mcpu=arm9 -c -Os -Wall -D$(TARGET) -I$(INCL) -DTOP_OF_MEM=$(TOP_OF_MEMORY)
++
++# Linker flags.
++#  -Wl,...:     tell GCC to pass this to linker.
++#    -Map:      create map file
++#    --cref:    add cross reference to map file
++LDFLAGS+=-nostartfiles -nostdlib  -Wl,-Map=$(BOOT_NAME).map,--cref
++LDFLAGS+=-T $(BOOTSTRAP_PATH)/elf32-littlearm.lds -Ttext $(LINK_ADDR)
++OBJS=crt0_gnu.o
++
++endif
++
++OBJS+=\
++	$(BOARD).o \
++	main.o \
++	gpio.o \
++	pmc.o \
++	debug.o \
++	sdramc.o \
++	nandflash.o \
++	_udivsi3.o \
++	_umodsi3.o \
++	div0.o \
++	udiv.o \
++	string.o
++
++rebuild: clean all
++
++all: 	$(BOOT_NAME)
++
++ifeq ($(TOOLCHAIN), gcc)
++$(BOOT_NAME): $(OBJS)
++	$(LD) $(LDFLAGS) -n -o $(BOOT_NAME).elf $(OBJS)
++	$(OBJCOPY) --strip-debug --strip-unneeded $(BOOT_NAME).elf -O binary $(BOOT_NAME).bin
++endif
++	
++	
++$(BOARD).o: $(BOOTSTRAP_PATH)/board/$(BOARD)/$(BOARD).c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/board/$(BOARD)/$(BOARD).c -o $(BOARD).o
++
++main.o: $(BOOTSTRAP_PATH)/main.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/main.c -o main.o
++
++gpio.o: $(BOOTSTRAP_PATH)/driver/gpio.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/driver/gpio.c -o gpio.o
++
++pmc.o:  $(BOOTSTRAP_PATH)/driver/pmc.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/driver/pmc.c -o pmc.o
++
++debug.o: $(BOOTSTRAP_PATH)/driver/debug.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/driver/debug.c -o debug.o
++
++sdramc.o:  $(BOOTSTRAP_PATH)/driver/sdramc.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/driver/sdramc.c -o sdramc.o
++
++dataflash.o:  $(BOOTSTRAP_PATH)/driver/dataflash.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/driver/dataflash.c -o dataflash.o
++
++nandflash.o:  $(BOOTSTRAP_PATH)/driver/nandflash.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/driver/nandflash.c -o nandflash.o
++
++crt0_gnu.o:  $(BOOTSTRAP_PATH)/crt0_gnu.S
++	$(AS) $(ASFLAGS) $(BOOTSTRAP_PATH)/crt0_gnu.S -o crt0_gnu.o
++
++div0.o:  $(BOOTSTRAP_PATH)/lib/div0.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/lib/div0.c -o div0.o
++
++string.o:  $(BOOTSTRAP_PATH)/lib/string.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/lib/string.c -o string.o
++
++udiv.o:  $(BOOTSTRAP_PATH)/lib/udiv.c 
++	$(CC) -c $(CCFLAGS) $(BOOTSTRAP_PATH)/lib/udiv.c -o udiv.o
++
++_udivsi3.o:  $(BOOTSTRAP_PATH)/lib/_udivsi3.S
++	$(AS) $(ASFLAGS) $(BOOTSTRAP_PATH)/lib/_udivsi3.S -o _udivsi3.o
++
++_umodsi3.o:  $(BOOTSTRAP_PATH)/lib/_umodsi3.S
++	$(AS) $(ASFLAGS) $(BOOTSTRAP_PATH)/lib/_umodsi3.S -o _umodsi3.o
++
++clean:
++	rm -f *.o *.bin *.elf *.map
+diff -urN a/board/nedap9263/nandflash/nedap9263.h b/board/nedap9263/nandflash/nedap9263.h
+--- a/board/nedap9263/nandflash/nedap9263.h	1970-01-01 01:00:00.000000000 +0100
++++ b/board/nedap9263/nandflash/nedap9263.h	2010-04-06 14:44:43.917419666 +0200
+@@ -0,0 +1,150 @@
++/* ----------------------------------------------------------------------------
++ *         ATMEL Microcontroller Software Support  -  ROUSSET  -
++ * ----------------------------------------------------------------------------
++ * Copyright (c) 2006, Atmel Corporation
++ *
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ *
++ * - Redistributions of source code must retain the above copyright notice,
++ * this list of conditions and the disclaimer below.
++ *
++ * Atmel's name may not be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * DISCLAIMER: THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
++ * DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
++ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
++ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
++ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ * ----------------------------------------------------------------------------
++ * File Name           : nedap9263.h
++ * Object              :
++ * Creation            : JdJ 2010-03-11
++ *-----------------------------------------------------------------------------
++ */
++#ifndef _NEDAP9263_H
++#define _NEDAP9263_H
++
++/* ******************************************************************* */
++/* PMC Settings                                                        */
++/*                                                                     */
++/* The main oscillator is enabled as soon as possible in the c_startup */
++/* and MCK is switched on the main oscillator.                         */
++/* PLL initialization is done later in the hw_init() function          */
++/* ******************************************************************* */
++#define BOARD_MAINOSC		25000000
++
++#define PCLK			200000000
++#define DIVA			5
++#define MULA			40		// (PCLK / (BOARD_MAINOSC / DIVA))
++#define OUTA			2		// ((PCLK > 195000000) * 2)
++
++#define BOARD_PLLA		AT91C_CKGR_SRCA
++#define BOARD_MULA		(AT91C_CKGR_MULA & ((MULA - 1) << 16))
++#define BOARD_OUTA		(AT91C_CKGR_OUTA & (OUTA << 14))
++#define BOARD_COUNTA		AT91C_CKGR_PLLACOUNT
++#define BOARD_DIVA		(AT91C_CKGR_DIVA & DIVA)
++
++#define PLLA_SETTINGS		( BOARD_PLLA \
++				| BOARD_MULA \
++				| BOARD_OUTA \
++				| BOARD_COUNTA \
++				| BOARD_DIVA)
++
++#define USBCLK			(48000000 * 2)
++#define DIVB			25
++#define MULB			96		// (USBCLK / (BOARD_MAINOSC / DIVB))
++#define OUTB			0		// ((USBCLK > 195000000) * 2)
++
++#define BOARD_PLLB		AT91C_CKGR_USBDIV_1	// div2 --> 48MHz
++#define BOARD_MULB		(AT91C_CKGR_MULB & ((MULB - 1) << 16))
++#define BOARD_OUTB		(AT91C_CKGR_OUTB & (OUTB << 14))
++#define BOARD_COUNTB		AT91C_CKGR_PLLBCOUNT
++#define BOARD_DIVB		(AT91C_CKGR_DIVB & DIVB)
++
++#define PLLB_SETTINGS		( BOARD_PLLB \
++				| BOARD_MULB \
++				| BOARD_OUTB \
++				| BOARD_COUNTB \
++				| BOARD_DIVB)
++
++#define MASTER_CLOCK		(PCLK / 2)
++#define PLL_LOCK_TIMEOUT	1000000
++
++/* Switch MCK on PLLA output PCK = PLLA = 2 * MCK */
++#define MCKR_SETTINGS		(AT91C_PMC_PRES_CLK | AT91C_PMC_MDIV_2)
++#define MCKR_CSS_SETTINGS	(AT91C_PMC_CSS_PLLA_CLK | MCKR_SETTINGS)
++
++/* ******************************************************************* */
++/* NandFlash Settings                                                  */
++/*                                                                     */
++/* ******************************************************************* */
++#define AT91C_SMARTMEDIA_BASE	0x40000000
++
++#define AT91_SMART_MEDIA_ALE    (1 << 21)	/* our ALE is AD21 */
++#define AT91_SMART_MEDIA_CLE    (1 << 22)	/* our CLE is AD22 */
++
++#define NAND_DISABLE_CE() do { *(volatile unsigned int *)AT91C_PIOD_SODR = AT91C_PIO_PD15;} while(0)
++#define NAND_ENABLE_CE()  do { *(volatile unsigned int *)AT91C_PIOD_CODR = AT91C_PIO_PD15;} while(0)
++#define NAND_WAIT_READY() while (!(*(volatile unsigned int *)AT91C_PIOA_PDSR & AT91C_PIO_PA22))
++
++/* ******************************************************************* */
++/* SDRAMC Settings                                                     */
++/*                                                                     */
++/* ******************************************************************* */
++#define AT91C_BASE_SDRAMC 	AT91C_BASE_SDRAMC0
++#define AT91C_EBI_SDRAM		AT91C_EBI0_SDRAM
++
++/* ******************************************************************** */
++/* SMC Chip Select 3 Timings for NandFlash for MASTER_CLOCK = 100000000.*/
++/* Please refer to SMC section in AT91SAM9x datasheet to learn how 	*/
++/* to generate these values. 						*/
++/* ******************************************************************** */
++#define AT91C_SM_NWE_SETUP	(1 << 0)
++#define AT91C_SM_NCS_WR_SETUP	(1 << 8)
++#define AT91C_SM_NRD_SETUP	(1 << 16)
++#define AT91C_SM_NCS_RD_SETUP	(1 << 24)
++  
++#define AT91C_SM_NWE_PULSE 	(3 << 0)
++#define AT91C_SM_NCS_WR_PULSE	(3 << 8)
++#define AT91C_SM_NRD_PULSE	(3 << 16)
++#define AT91C_SM_NCS_RD_PULSE	(3 << 24)
++  
++#define AT91C_SM_NWE_CYCLE 	(5 << 0)
++#define AT91C_SM_NRD_CYCLE	(5 << 16)
++
++#define AT91C_SM_TDF	        (2 << 16)
++
++/* ******************************************************************* */
++/* BootStrap Settings                                                  */
++/*                                                                     */
++/* ******************************************************************* */
++#define IMG_ADDRESS 	0x60000		/* Image Address in NandFlash */
++#define IMG_SIZE	0xA0000		/* Image Size in NandFlash    */
++
++#define MACH_TYPE	2742       	/* NEDAP9263 */
++#define JUMP_ADDR	0x23F00000	/* Final Jump Address 	      */
++
++/* ******************************************************************* */
++/* Application Settings                                                */
++/* ******************************************************************* */
++#undef CFG_DEBUG
++#undef CFG_DATAFLASH
++
++#define CFG_NANDFLASH
++#undef	NANDFLASH_SMALL_BLOCKS	/* NANDFLASH_LARGE_BLOCKS used instead */
++
++#define CFG_HW_INIT
++#define CFG_SDRAM
++#define CFG_WATCHDOG
++
++
++#endif	/* _NEDAP9263_H */
+diff -urN a/board/nedap9263/nedap9263.c b/board/nedap9263/nedap9263.c
+--- a/board/nedap9263/nedap9263.c	1970-01-01 01:00:00.000000000 +0100
++++ b/board/nedap9263/nedap9263.c	2010-04-06 14:44:43.917419666 +0200
+@@ -0,0 +1,271 @@
++/* ----------------------------------------------------------------------------
++ *         ATMEL Microcontroller Software Support  -  ROUSSET  -
++ * ----------------------------------------------------------------------------
++ * Copyright (c) 2006, Atmel Corporation
++
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ *
++ * - Redistributions of source code must retain the above copyright notice,
++ * this list of conditions and the disclaiimer below.
++ *
++ * Atmel's name may not be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * DISCLAIMER: THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
++ * DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
++ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
++ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
++ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ * ----------------------------------------------------------------------------
++ * File Name           : nedap9263.c
++ * Object              :
++ * Creation            : JdJ 2010-03-11
++ *-----------------------------------------------------------------------------
++ */
++#include "../../include/part.h"
++#include "../../include/gpio.h"
++#include "../../include/pmc.h"
++#include "../../include/debug.h"
++#include "../../include/sdramc.h"
++#include "../../include/main.h"
++#ifdef CFG_NANDFLASH
++#include "../../include/nandflash.h"
++#endif
++#ifdef CFG_DATAFLASH
++#include "../../include/dataflash.h"
++#endif
++
++static inline unsigned int get_cp15(void)
++{
++	unsigned int value;
++	__asm__("mrc p15, 0, %0, c1, c0, 0" : "=r" (value));
++	return value;
++}
++
++static inline void set_cp15(unsigned int value)
++{
++	__asm__("mcr p15, 0, %0, c1, c0, 0" : : "r" (value));
++}
++
++
++#ifdef CFG_HW_INIT
++/*---------------------------------------------------------------------------- */
++/* \fn    hw_init							       */
++/* \brief This function performs very low level HW initialization	       */
++/* This function is invoked as soon as possible during the c_startup	       */
++/* The bss segment must be initialized					       */
++/*---------------------------------------------------------------------------- */
++void hw_init(void)
++{
++	/* Configure PIOs */
++	const struct pio_desc hw_pio[] = {
++#ifdef CFG_DEBUG
++		{"RXD", AT91C_PIN_PC(30), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"TXD", AT91C_PIN_PC(31), 0, PIO_DEFAULT, PIO_PERIPH_A},
++#endif
++		{(char *) 0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
++	};
++
++#ifndef CFG_WATCHDOG
++	/* Disable watchdog */
++	writel(AT91C_WDTC_WDDIS, AT91C_BASE_WDTC + WDTC_WDMR);
++#endif
++
++	/* At this stage the main oscillator is supposed to be enabled
++	 * PCK = MCK = MOSC */
++
++	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
++	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
++
++	/* PCK = PLLA = 2 * MCK */
++	pmc_cfg_mck(MCKR_SETTINGS, PLL_LOCK_TIMEOUT);
++	/* Switch MCK on PLLA output */
++	pmc_cfg_mck(MCKR_CSS_SETTINGS, PLL_LOCK_TIMEOUT);
++
++
++	/* Configure PLLB */
++	pmc_cfg_pllb(PLLB_SETTINGS, PLL_LOCK_TIMEOUT);
++
++	/* Configure the PIO controller to output PCK0 */
++	pio_setup(hw_pio);
++
++	/* Configure the EBI0 Slave Slot Cycle to 64 */
++	writel( (readl((AT91C_BASE_MATRIX + MATRIX_SCFG4)) & ~0xFF) | 0x40, (AT91C_BASE_MATRIX + MATRIX_SCFG4));
++
++#ifdef CFG_DEBUG
++	/* Enable Debug messages on the DBGU */
++	dbg_init(BAUDRATE(MASTER_CLOCK, 115200));
++	dbg_print("Start AT91Bootstrap...\n\r");
++#endif /* CFG_DEBUG */
++
++#ifdef CFG_SDRAM
++	/* Initialize the matrix */
++	/* VDDIOMSEL = 1 -> Memories are 3.3V powered */
++	writel(readl(AT91C_BASE_CCFG + CCFG_EBI0CSA) | (1 << 16) | AT91C_EBI_CS1A_SDRAMC, AT91C_BASE_CCFG + CCFG_EBI0CSA);
++
++	/* Configure SDRAM Controller */
++	sdram_init(	AT91C_SDRAMC_NC_11 |
++				AT91C_SDRAMC_NR_13 |
++				AT91C_SDRAMC_CAS_2 |
++				AT91C_SDRAMC_NB_4_BANKS |
++				AT91C_SDRAMC_DBW_32_BITS |
++				AT91C_SDRAMC_TWR_2 |
++				AT91C_SDRAMC_TRC_7 |
++				AT91C_SDRAMC_TRP_2 |
++				AT91C_SDRAMC_TRCD_2 |
++				AT91C_SDRAMC_TRAS_5 |
++				AT91C_SDRAMC_TXSR_8,		/* Control Register       */
++				(MASTER_CLOCK * 7)/1000000,	/* Refresh Timer Register */
++				AT91C_SDRAMC_MD_SDRAM);		/* SDRAM (no low power)   */ 
++
++	writel(AT91C_SDRAMC_NC_11, AT91C_EBI0_SDRAM + 0x00002000);
++	writel(AT91C_SDRAMC_NC_10, AT91C_EBI0_SDRAM + 0x00001000);
++	writel(AT91C_SDRAMC_NC_9,  AT91C_EBI0_SDRAM + 0x00000800);
++	writel(AT91C_SDRAMC_NC_8,  AT91C_EBI0_SDRAM + 0x00000400);
++
++#ifdef CFG_DEBUG
++	switch (readl(AT91C_EBI0_SDRAM + 0x00000000)) {
++		case AT91C_SDRAMC_NC_8: dbg_print("SDRAM = 32MB\n\r"); break;
++		case AT91C_SDRAMC_NC_9: dbg_print("SDRAM = 64MB\n\r"); break;
++		case AT91C_SDRAMC_NC_10: dbg_print("SDRAM = 128MB\n\r"); break;
++		case AT91C_SDRAMC_NC_11: dbg_print("SDRAM = 256MB\n\r"); break;
++	}
++#endif
++
++	/* Configure SDRAM Controller */
++	if (readl(AT91C_EBI0_SDRAM + 0x00000000) < AT91C_SDRAMC_NC_11) {
++		sdram_init(	readl(AT91C_EBI0_SDRAM + 0x00000000) |
++					AT91C_SDRAMC_NR_13 |
++					AT91C_SDRAMC_CAS_2 |
++					AT91C_SDRAMC_NB_4_BANKS |
++					AT91C_SDRAMC_DBW_32_BITS |
++					AT91C_SDRAMC_TWR_2 |
++					AT91C_SDRAMC_TRC_7 |
++					AT91C_SDRAMC_TRP_2 |
++					AT91C_SDRAMC_TRCD_2 |
++					AT91C_SDRAMC_TRAS_5 |
++					AT91C_SDRAMC_TXSR_8,		/* Control Register       */
++					(MASTER_CLOCK * 7)/1000000,	/* Refresh Timer Register */
++					AT91C_SDRAMC_MD_SDRAM);		/* SDRAM (no low power)   */ 
++	}
++
++#endif	/* CFG_SDRAM */
++}
++#endif /* CFG_HW_INIT */
++
++
++#ifdef CFG_SDRAM
++//*----------------------------------------------------------------------------
++//* \fn    sdramc_hw_init
++//* \brief This function performs SDRAMC HW initialization
++//*----------------------------------------------------------------------------*/
++void sdramc_hw_init(void)
++{
++	/* Configure PIOs */
++	const struct pio_desc sdramc_pio[] = {
++		{"D16", AT91C_PIN_PD(16), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D17", AT91C_PIN_PD(17), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D18", AT91C_PIN_PD(18), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D19", AT91C_PIN_PD(19), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D20", AT91C_PIN_PD(20), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D21", AT91C_PIN_PD(21), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D22", AT91C_PIN_PD(22), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D23", AT91C_PIN_PD(23), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D24", AT91C_PIN_PD(24), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D25", AT91C_PIN_PD(25), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D26", AT91C_PIN_PD(26), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D27", AT91C_PIN_PD(27), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D28", AT91C_PIN_PD(28), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D29", AT91C_PIN_PD(29), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D30", AT91C_PIN_PD(30), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{"D31", AT91C_PIN_PD(31), 0, PIO_DEFAULT, PIO_PERIPH_A},
++		{(char *) 0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
++	};
++
++	/* Configure the SDRAMC PIO controller */
++	pio_setup(sdramc_pio);
++}
++#endif
++
++#ifdef CFG_DATAFLASH
++/*------------------------------------------------------------------------------*/
++/* \fn    df_hw_init								*/
++/* \brief This function performs DataFlash HW initialization			*/
++/*------------------------------------------------------------------------------*/
++void df_hw_init(void)
++{
++	/* Configure PIOs */
++	const struct pio_desc df_pio[] = {
++		{"MISO",  AT91C_PIN_PA(0), 0, PIO_DEFAULT, PIO_PERIPH_B},
++		{"MOSI",  AT91C_PIN_PA(1), 0, PIO_DEFAULT, PIO_PERIPH_B},
++		{"SPCK",  AT91C_PIN_PA(2), 0, PIO_DEFAULT, PIO_PERIPH_B},
++		{"NPCS0", AT91C_PIN_PA(5), 0, PIO_DEFAULT, PIO_PERIPH_B},
++		{(char *) 0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
++	};
++
++	/* Configure the PIO controller */
++	pio_setup(df_pio);
++}
++#endif /* CFG_DATAFLASH */
++
++
++#ifdef CFG_NANDFLASH
++/*------------------------------------------------------------------------------*/
++/* \fn    nandflash_hw_init							*/
++/* \brief NandFlash HW init							*/
++/*------------------------------------------------------------------------------*/
++void nandflash_hw_init(void)
++{
++	/* Configure PIOs */
++	const struct pio_desc nand_pio[] = {
++		{"RDY_BSY", AT91C_PIN_PA(22), 0, PIO_PULLUP, PIO_INPUT},
++		{"NANDCS",  AT91C_PIN_PD(15), 0, PIO_PULLUP, PIO_OUTPUT},
++		{(char *) 0, 0, 0,  PIO_DEFAULT, PIO_PERIPH_A},
++	};
++
++	/* Setup Smart Media, first enable the address range of CS3 in HMATRIX user interface */
++	writel(readl(AT91C_BASE_CCFG + CCFG_EBI0CSA) | AT91C_EBI_CS3A_SM, AT91C_BASE_CCFG + CCFG_EBI0CSA);
++		    
++	/* Configure SMC CS3 */
++ 	writel((AT91C_SM_NWE_SETUP | AT91C_SM_NCS_WR_SETUP | AT91C_SM_NRD_SETUP | AT91C_SM_NCS_RD_SETUP), AT91C_BASE_SMC0 + SMC_SETUP3);
++  	writel((AT91C_SM_NWE_PULSE | AT91C_SM_NCS_WR_PULSE | AT91C_SM_NRD_PULSE | AT91C_SM_NCS_RD_PULSE), AT91C_BASE_SMC0 + SMC_PULSE3);
++	writel((AT91C_SM_NWE_CYCLE | AT91C_SM_NRD_CYCLE)						, AT91C_BASE_SMC0 + SMC_CYCLE3);
++	writel((AT91C_SMC_READMODE | AT91C_SMC_WRITEMODE | AT91C_SMC_NWAITM_NWAIT_DISABLE | 
++		AT91C_SMC_DBW_WIDTH_EIGTH_BITS | AT91C_SM_TDF)						, AT91C_BASE_SMC0 + SMC_CTRL3);
++
++	/* Configure the PIO controller */
++	writel((1 << AT91C_ID_PIOA), PMC_PCER + AT91C_BASE_PMC);
++	writel((1 << AT91C_ID_PIOCDE), PMC_PCER + AT91C_BASE_PMC);
++
++	pio_setup(nand_pio);
++}
++
++/*------------------------------------------------------------------------------*/
++/* \fn    nandflash_cfg_16bits_dbw_init						*/
++/* \brief Configure SMC in 16 bits mode						*/
++/*------------------------------------------------------------------------------*/
++void nandflash_cfg_16bits_dbw_init(void)
++{
++	writel(readl(AT91C_BASE_SMC0 + SMC_CTRL3) | AT91C_SMC_DBW_WIDTH_SIXTEEN_BITS, AT91C_BASE_SMC0 + SMC_CTRL3);
++}
++
++/*------------------------------------------------------------------------------*/
++/* \fn    nandflash_cfg_8bits_dbw_init						*/
++/* \brief Configure SMC in 8 bits mode						*/
++/*------------------------------------------------------------------------------*/
++void nandflash_cfg_8bits_dbw_init(void)
++{
++	writel((readl(AT91C_BASE_SMC0 + SMC_CTRL3) & ~(AT91C_SMC_DBW)) | AT91C_SMC_DBW_WIDTH_EIGTH_BITS, AT91C_BASE_SMC0 + SMC_CTRL3);
++}
++
++#endif /* #ifdef CFG_NANDFLASH */
++
++
+diff -urN a/include/part.h b/include/part.h
+--- a/include/part.h	2009-11-09 18:28:11.000000000 +0100
++++ b/include/part.h	2010-04-06 14:44:04.869420401 +0200
+@@ -88,4 +88,9 @@
+ #include "at91sam9m10ekes.h"
+ #endif
+ 
++#ifdef NEDAP9263
++#include "AT91SAM9263_inc.h"
++#include "nedap9263.h"
++#endif
++
+ #endif /* _PART_H */
